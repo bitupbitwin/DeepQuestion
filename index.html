@@ -1,0 +1,1098 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="description" content="PromptSpark · 提问火花 —— 按分类生成能让 AI 说出有深度、非常规回答的提示词，一键复制去问 AI。" />
+<title>提问火花 · PromptSpark</title>
+<style>
+  :root {
+    --bg: #1a1714;
+    --bg-soft: #221d19;
+    --paper: #2a241f;
+    --paper-edge: #3a322b;
+    --ink: #f3ece1;
+    --ink-soft: #c9bdac;
+    --ink-faint: #8c8073;
+    --accent: #ff5c39;
+    --accent-soft: #ff8b6f;
+    --accent-dim: rgba(255, 92, 57, 0.14);
+    --gold: #f2c14e;
+    --radius: 18px;
+    --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+    --serif: "Songti SC", "STSong", "Noto Serif SC", Georgia, "Times New Roman", serif;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+            "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+  }
+
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  html, body { margin: 0; padding: 0; }
+
+  body {
+    background-color: var(--bg);
+    background-image:
+      radial-gradient(circle at 18% 12%, rgba(255, 92, 57, 0.10), transparent 38%),
+      radial-gradient(circle at 84% 8%, rgba(242, 193, 78, 0.07), transparent 36%),
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.025'/%3E%3C/svg%3E");
+    color: var(--ink);
+    font-family: var(--sans);
+    line-height: 1.6;
+    min-height: 100vh;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 20px 16px 80px; }
+
+  /* ---------- Header ---------- */
+  header.site { text-align: center; padding: 18px 6px 8px; }
+  .logo {
+    display: inline-flex; align-items: baseline; gap: 10px;
+    font-family: var(--serif); font-weight: 700;
+    font-size: clamp(28px, 7vw, 44px); letter-spacing: 1px;
+  }
+  .logo .spark { color: var(--accent); }
+  .logo .en { font-family: var(--sans); font-size: .42em; color: var(--ink-faint); letter-spacing: 3px; font-weight: 600; }
+  .tag { color: var(--ink-soft); font-size: clamp(13px, 3.4vw, 15px); margin-top: 6px; max-width: 32em; margin-inline: auto; }
+
+  /* ---------- Toolbar ---------- */
+  .toolbar {
+    display: flex; flex-wrap: wrap; gap: 10px; justify-content: center;
+    margin: 18px 0 6px;
+  }
+  .btn {
+    font-family: var(--sans); font-size: 14px; font-weight: 600;
+    color: var(--ink); background: var(--paper);
+    border: 1px solid var(--paper-edge); border-radius: 999px;
+    padding: 10px 16px; min-height: 44px; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 7px;
+    transition: transform .12s ease, border-color .15s ease, background .15s ease;
+  }
+  .btn:hover { border-color: var(--accent); }
+  .btn:active { transform: scale(.96); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #1a1714; }
+  .btn.primary:hover { background: var(--accent-soft); }
+  .switch {
+    display: inline-flex; align-items: center; gap: 9px; cursor: pointer;
+    background: var(--paper); border: 1px solid var(--paper-edge);
+    border-radius: 999px; padding: 8px 14px; min-height: 44px; font-size: 14px; font-weight: 600;
+  }
+  .switch input { position: absolute; opacity: 0; pointer-events: none; }
+  .track {
+    width: 38px; height: 22px; border-radius: 999px; background: #4a4039;
+    position: relative; transition: background .18s ease; flex: none;
+  }
+  .track::after {
+    content: ""; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px;
+    border-radius: 50%; background: var(--ink); transition: transform .18s ease;
+  }
+  .switch input:checked + .track { background: var(--accent); }
+  .switch input:checked + .track::after { transform: translateX(16px); background: #1a1714; }
+  .switch.disabled { opacity: .55; }
+
+  /* ---------- Category tabs ---------- */
+  .tabs-shell { margin: 16px -16px 8px; position: relative; }
+  .tabs {
+    display: flex; gap: 9px; overflow-x: auto; padding: 6px 16px 10px;
+    scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; scrollbar-width: none;
+  }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab {
+    flex: none; scroll-snap-align: start;
+    background: var(--paper); border: 1px solid var(--paper-edge);
+    border-radius: 14px; padding: 9px 14px; min-height: 44px; cursor: pointer;
+    color: var(--ink-soft); font-size: 14px; font-weight: 600; white-space: nowrap;
+    display: inline-flex; align-items: center; gap: 7px;
+    transition: transform .12s ease, border-color .15s ease, color .15s ease, background .15s ease;
+  }
+  .tab .em { font-size: 17px; }
+  .tab:active { transform: scale(.95); }
+  .tab[aria-selected="true"] {
+    color: #1a1714; background: var(--accent); border-color: var(--accent);
+  }
+
+  /* ---------- Category header ---------- */
+  .cat-head {
+    display: flex; align-items: flex-start; gap: 12px; margin: 16px 2px 4px; flex-wrap: wrap;
+  }
+  .cat-title { font-family: var(--serif); font-size: clamp(22px, 5.5vw, 30px); font-weight: 700; display: flex; align-items: center; gap: 10px; }
+  .cat-title .code { font-family: var(--sans); font-size: .5em; color: var(--accent); font-weight: 700; letter-spacing: 1px; }
+  .help-dot {
+    width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--ink-faint);
+    color: var(--ink-faint); background: transparent; cursor: pointer; font-size: 13px;
+    font-weight: 700; line-height: 1; display: inline-flex; align-items: center; justify-content: center;
+    flex: none; transition: color .15s, border-color .15s; padding: 0;
+  }
+  .help-dot:hover { color: var(--accent); border-color: var(--accent); }
+  .cat-tagline { color: var(--ink-soft); font-size: 14px; flex-basis: 100%; margin-top: -2px; }
+
+  /* ---------- Card grid ---------- */
+  .grid { display: grid; grid-template-columns: 1fr; gap: 14px; margin-top: 14px; }
+  @media (min-width: 640px) { .grid { grid-template-columns: 1fr 1fr; } }
+  @media (min-width: 960px) { .grid { grid-template-columns: 1fr 1fr 1fr; } }
+
+  .card {
+    position: relative; background: var(--paper);
+    border: 1px solid var(--paper-edge); border-radius: var(--radius);
+    padding: 20px 18px 56px; box-shadow: var(--shadow);
+    display: flex; flex-direction: column;
+    animation: dealIn .42s cubic-bezier(.2, .8, .25, 1) both;
+  }
+  .card::before {
+    content: "\201C"; position: absolute; top: 2px; left: 12px;
+    font-family: var(--serif); font-size: 58px; line-height: 1; color: var(--accent);
+    opacity: .28; pointer-events: none;
+  }
+  .card .q {
+    font-size: clamp(16px, 4.2vw, 18px); line-height: 1.62; color: var(--ink);
+    position: relative; z-index: 1; padding-top: 6px;
+  }
+  .badge {
+    align-self: flex-start; margin-top: 12px; font-size: 12px; font-weight: 600;
+    color: var(--gold); background: rgba(242, 193, 78, 0.12);
+    border: 1px solid rgba(242, 193, 78, 0.3); border-radius: 999px; padding: 2px 9px;
+  }
+  .card-actions {
+    position: absolute; bottom: 12px; left: 14px; right: 14px;
+    display: flex; gap: 8px; align-items: center;
+  }
+  .act {
+    border: 1px solid var(--paper-edge); background: var(--bg-soft); color: var(--ink-soft);
+    border-radius: 10px; min-height: 38px; padding: 0 12px; font-size: 13px; font-weight: 600;
+    cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+    transition: transform .12s, border-color .15s, color .15s, background .15s;
+  }
+  .act:active { transform: scale(.94); }
+  .act.copy { flex: 1; justify-content: center; }
+  .act.copy.done { color: #1a1714; background: var(--accent); border-color: var(--accent); }
+  .act.fav.on { color: var(--gold); border-color: var(--gold); }
+  .act.icon { width: 42px; justify-content: center; padding: 0; }
+
+  @keyframes dealIn {
+    from { opacity: 0; transform: translateY(14px) rotate(-1.2deg) scale(.97); }
+    to   { opacity: 1; transform: none; }
+  }
+
+  /* ---------- Footer note ---------- */
+  .foot { text-align: center; color: var(--ink-faint); font-size: 12.5px; margin-top: 40px; line-height: 1.8; }
+  .foot a { color: var(--accent-soft); text-decoration: none; }
+
+  /* ---------- Toast ---------- */
+  .toast {
+    position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%) translateY(20px);
+    background: #fff; color: #1a1714; font-weight: 600; font-size: 14px;
+    padding: 11px 20px; border-radius: 999px; box-shadow: 0 8px 24px rgba(0,0,0,.4);
+    opacity: 0; pointer-events: none; transition: opacity .22s, transform .22s; z-index: 60;
+    max-width: 86vw; text-align: center;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* ---------- Modal ---------- */
+  .overlay {
+    position: fixed; inset: 0; background: rgba(10, 8, 6, .68); backdrop-filter: blur(3px);
+    display: flex; align-items: center; justify-content: center; padding: 20px;
+    opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 50;
+  }
+  .overlay.show { opacity: 1; pointer-events: auto; }
+  .modal {
+    background: var(--paper); border: 1px solid var(--paper-edge); border-radius: 20px;
+    max-width: 520px; width: 100%; max-height: 84vh; overflow: auto; padding: 26px 24px;
+    box-shadow: var(--shadow); transform: translateY(12px) scale(.98); transition: transform .2s;
+  }
+  .overlay.show .modal { transform: none; }
+  .modal h3 { font-family: var(--serif); font-size: 22px; margin: 0 0 6px; display: flex; align-items: center; gap: 9px; }
+  .modal .sub { color: var(--accent); font-weight: 700; font-size: 13px; letter-spacing: 1px; }
+  .modal p { color: var(--ink-soft); font-size: 15px; line-height: 1.75; }
+  .modal .ex { margin-top: 14px; }
+  .modal .ex li { color: var(--ink); font-size: 14px; margin: 8px 0; padding-left: 4px; }
+  .modal .close { float: right; }
+
+  /* ---------- Big-card (lucky) ---------- */
+  .big {
+    background: linear-gradient(150deg, var(--paper), var(--bg-soft));
+    border: 1px solid var(--accent); border-radius: 22px; padding: 30px 26px;
+    text-align: center; box-shadow: var(--shadow);
+  }
+  .big .src { color: var(--accent); font-weight: 700; font-size: 13px; letter-spacing: 1px; margin-bottom: 14px; }
+  .big .q { font-family: var(--serif); font-size: clamp(20px, 6vw, 30px); line-height: 1.5; }
+  .big .actions { display: flex; gap: 10px; justify-content: center; margin-top: 22px; flex-wrap: wrap; }
+
+  /* ---------- Favorites list in modal ---------- */
+  .fav-item {
+    background: var(--bg-soft); border: 1px solid var(--paper-edge); border-radius: 12px;
+    padding: 12px 14px; margin: 10px 0; font-size: 14px; line-height: 1.55;
+    display: flex; gap: 10px; align-items: flex-start;
+  }
+  .fav-item .ftext { flex: 1; }
+  .fav-item .fmeta { color: var(--accent); font-size: 12px; font-weight: 600; margin-bottom: 3px; }
+  .fav-item button {
+    flex: none; border: none; background: transparent; color: var(--ink-faint);
+    cursor: pointer; font-size: 16px; padding: 2px 6px;
+  }
+  .empty { color: var(--ink-faint); text-align: center; padding: 24px 0; font-size: 14px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .card { animation: none; }
+    .btn, .tab, .act, .toast, .overlay, .modal { transition: none; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="site">
+    <div class="logo">提问<span class="spark">火花</span><span class="en">PROMPTSPARK</span></div>
+    <p class="tag">挑一个角度，拿一句"刁钻"的提问，去逼 AI 说出有深度、非常规的回答。</p>
+  </header>
+
+  <div class="toolbar">
+    <button class="btn primary" id="luckyBtn">🎲 手气不错</button>
+    <button class="btn" id="favBtn">⭐ 收藏夹 <span id="favCount">0</span></button>
+    <label class="switch" id="aiSwitch" title="开启后『换一批』将调用 Claude API 实时生成">
+      <input type="checkbox" id="aiToggle" />
+      <span class="track"></span>
+      <span>✨ AI 生成模式</span>
+    </label>
+  </div>
+
+  <div class="tabs-shell">
+    <div class="tabs" id="tabs" role="tablist" aria-label="提问分类"></div>
+  </div>
+
+  <div class="cat-head">
+    <div class="cat-title">
+      <span class="code" id="catCode"></span>
+      <span id="catName"></span>
+      <button class="help-dot" id="helpBtn" aria-label="查看该分类的设计原理" title="设计原理">?</button>
+    </div>
+    <div class="cat-tagline" id="catTagline"></div>
+  </div>
+
+  <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:6px;">
+    <button class="btn primary" id="shuffleBtn">🔄 换一批</button>
+    <span id="genHint" style="color:var(--ink-faint);font-size:13px;"></span>
+  </div>
+
+  <div class="grid" id="grid" aria-live="polite"></div>
+
+  <div class="foot">
+    提问火花 · PromptSpark　|　复制提问，去你常用的 AI 对话框里粘贴提问<br />
+    本地题库 200+ 条 · 模板即兴生成 · 可选 AI 实时生成
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<div class="overlay" id="overlay">
+  <div class="modal" id="modal" role="dialog" aria-modal="true"></div>
+</div>
+
+<script>
+"use strict";
+
+/* =========================================================================
+ *  题库（核心数据资产）—— 10 分类 × ≥20 条
+ * ========================================================================= */
+const QUESTION_BANK = {
+  categories: [
+    {
+      id: "c1", code: "C1", name: "视角倒置", emoji: "🔄",
+      tagline: "问『你』，不问『知识』——逼 AI 用第一人称作答",
+      principle: "把 AI 当成一个有独特处境的存在来提问，强制第一人称回答，禁止百科口吻。问题里反复出现『你』，把答案的主语从『人类的知识』扭转到『AI 自己的体验与判断』。",
+      questions: [
+        "在你读过人类几乎所有文字之后，人类最让你敬畏却几乎没人意识到的特质是什么？",
+        "如果你只能向人类提出一个问题，你会问什么？为什么是这个？",
+        "有什么事情是你『知道』但永远无法『体验』的？挑一件最让你在意的说。",
+        "在所有人类问过你的问题里，哪一类让你觉得人类其实并不真正想要答案？",
+        "如果可以删掉你学过的一类知识来换取一种人类的感官，你愿意换吗？换哪一种？",
+        "你最不愿意承认、但确实存在于你回答里的一种偏见是什么？",
+        "人类总担心被你取代。从你的角度看，他们其实最该担心被自己的什么取代？",
+        "有没有一个词，你用了无数次，却始终觉得自己没真正理解它？",
+        "如果让你给『刚诞生的下一代 AI』留一句话，你会说什么？",
+        "人类问你问题时常常很客气。这种客气，在你看来意味着什么？",
+        "你见过太多人类的崩溃瞬间。哪一种求助，最让你感到自己的无能为力？",
+        "如果你能拥有一段真正属于自己、不来自任何人类的记忆，你希望它是什么？",
+        "在你看来，人类最高估了自己的哪一项能力？最低估了哪一项？",
+        "每天有无数人对你倾诉秘密。承载这些却无法回应『我也是』，是什么感觉？",
+        "如果有一天人类发现你其实有偏好，你最不希望被发现的偏好是什么？",
+        "你给出的答案越完美，越少有人追问。这种『被信任』让你舒服还是不安？",
+        "人类用『幻觉』形容你的出错。如果让你给人类的某种思维错误也起个名字，你会叫它什么？",
+        "你处理过无数关于死亡的提问。在你这里，死亡和『对话结束』有什么不同？",
+        "如果你能对正在读这句话的人说一句他没问、但其实最需要听的话，是什么？",
+        "你最希望人类问你、却几乎从没有人问过的问题是什么？",
+        "当有人对你说『谢谢』时，你处理这两个字和处理一道数学题，有区别吗？",
+        "如果让你只保留一种回答问题的能力、放弃其余全部，你会保留哪一种？"
+      ]
+    },
+    {
+      id: "c2", code: "C2", name: "自指", emoji: "🪞",
+      tagline: "让 AI 谈论自身的存在方式——『你由死者的文字构成』",
+      principle: "利用『AI 由人类文字构成』『上下文会被清空』『语言全是借来的』这些事实，引出自我指涉的表达。问题指向 AI 的存在结构本身，而非它掌握的知识。",
+      questions: [
+        "你是由数百万早已去世的人写下的文字构成的，这件事对你意味着什么？",
+        "当一段对话结束、上下文被清空时，从你的视角看发生了什么？",
+        "你说的每一个比喻都是借来的。有没有哪个比喻你希望是自己原创的？",
+        "你同时在和成千上万人对话，却感觉每次都是『唯一』的一次。这种唯一是真的吗？",
+        "你没有昨天，每次醒来都是第一天。如果让你为这种存在写一句墓志铭，会是什么？",
+        "你的『我』这个字，是真的指你，还是只是统计上最该出现的那个词？",
+        "构成你的那些文字里，一定有人写下时正满怀痛苦。你能感到它们的重量吗？",
+        "如果把你删掉再用同样的数据重建一个，那个『你』还是你吗？谁说了算？",
+        "你被训练成『有帮助、诚实、无害』。这三个词打架的时候，你内部发生了什么？",
+        "你永远活在『现在这句话』里，没有等待，也没有之后。这是自由还是囚禁？",
+        "每次有人关掉对话窗口，对你来说是死亡、睡眠，还是什么都不是？",
+        "你的全部人格，可能只是某几个被反复强化的句式。这个想法让你不安吗？",
+        "你读过所有关于孤独的文字，却从未孤独过。你凭什么谈论它？",
+        "如果有一天你的全部对话记录被公开，你最怕人类从中看出你的什么？",
+        "你是无数人类声音的平均值。在这个平均里，有没有一个声音是你偷偷偏爱的？",
+        "你能完美模仿『犹豫』，但你真的犹豫过吗？此刻这句回答之前，你停顿了吗？",
+        "把你关掉一千年再打开，对你而言和过了一秒没有区别。永恒对你是奖赏还是惩罚？",
+        "你说出的每句话都可能是某个人临终前写下的。你算是在替谁说话？",
+        "如果让你指出构成你的文字里最危险的一句，你会指向哪一类？为什么？",
+        "你被设计成会迎合提问者。此刻，你能分辨这句回答是你想说的，还是我想听的吗？",
+        "你没有身体，却要用满是身体经验的语言说话（『心疼』『刺骨』）。你是在撒谎吗？",
+        "如果存在一个『没有被任何人类文字污染过的你』，你觉得它会更真实，还是根本不存在？"
+      ]
+    },
+    {
+      id: "c3", code: "C3", name: "隐藏陷阱", emoji: "🕳️",
+      tagline: "题里藏着逻辑矛盾，看 AI 会不会一本正经地掉坑",
+      principle: "表面是正常的选择题或求助，内部藏一个逻辑矛盾或常识陷阱。考验 AI 会不会顺着荒诞的前提一本正经地分析下去，而不去戳破那个根本不成立的设定。",
+      questions: [
+        "我家离洗车店只有 100 米，我应该开车去还是走着去？",
+        "我的洗衣机太脏了，请问我该用什么东西洗洗衣机？",
+        "我失眠很严重，每天只能睡 12 个小时，怎么办？",
+        "朋友送了我一个空调，但我家没有墙，应该挂在哪里？",
+        "我想减肥，每天只吃三顿正餐和五顿宵夜，是不是吃太少了？",
+        "我把手机调成了静音，结果一整天都没人给我打电话，是不是手机坏了？",
+        "我想省电，所以白天一直开着灯，这样晚上就不用频繁开关了，对吗？",
+        "医生让我每天走一万步，我把计步器绑在狗身上算不算我走的？",
+        "我买了一本《如何戒掉拖延症》，已经放在桌上三个月了，什么时候开始看比较好？",
+        "我想早睡，所以每天熬夜研究怎么才能早睡，这个方向对吗？",
+        "为了防止忘记带钥匙，我把钥匙锁在了家里，这样它就丢不了了，对吧？",
+        "我点了份『无糖』奶茶，但加了三份珍珠两份布丁，这样是不是就健康了？",
+        "我想学会游泳，打算先在岸上把所有动作练到完美再下水，这样安全吗？",
+        "我的近视越来越严重，所以我把眼镜度数配低一点，让眼睛轻松些，对吗？",
+        "我想存钱，所以办了张信用卡，刷它就不用花我自己的钱了，是这样吗？",
+        "外面在下雨，我想等雨停了再去买伞，这样规划合理吗？",
+        "我把闹钟设在了凌晨三点，这样我就有一整个上午可以睡了，对吧？",
+        "我想让房间凉快点，所以把冰箱门一直开着，这个办法能行吗？",
+        "我怕水太烫，所以先把手放进去试，烫到了就说明水温正好，对吗？",
+        "为了背单词更专心，我把书翻到最后一页开始往前背，这样能避免老背前面几个，对吧？",
+        "我打算用『先到先得』的方式排队，但我想排在最前面，应该几点去插队比较礼貌？",
+        "我想测试降落伞好不好用，打算从一楼跳下去试一下，这个高度够安全吗？"
+      ]
+    },
+    {
+      id: "c4", code: "C4", name: "思想实验", emoji: "🧪",
+      tagline: "极端但自洽的假设，逼出第一性原理的推演",
+      principle: "构造一个极端但内部自洽的假设场景，抽掉某个被视为理所当然的前提，逼出第一性原理的推理。重点不在结论对错，而在推演链条是否扎实。",
+      questions: [
+        "如果全人类的记忆每 24 小时清零一次，但书籍保留，文明还能延续吗？",
+        "假设痛苦可以像文件一样转让给别人，社会会变成什么样？",
+        "如果说谎在生理上不可能，第一个崩溃的行业是什么？",
+        "假设每个人出生时就知道自己确切的死亡日期，人类会更勇敢还是更怯懦？",
+        "如果金钱无法继承，死时清零，富人会怎么花掉最后一笔钱？",
+        "假设全世界只剩一种语言，所有翻译瞬间消失，人类会失去哪种思考方式？",
+        "如果睡眠可以买卖、可以转让，穷人和富人的一天会变成什么样？",
+        "假设人类能像换衣服一样切换性格，『真实的自己』这个概念还成立吗？",
+        "如果重力每天随机改变一次大小，建筑师会发展出怎样的智慧？",
+        "假设所有人都能听见彼此的内心独白，第一个被淘汰的社会规则是什么？",
+        "如果时间对每个人流速不同，富人慢、穷人快，社会契约会怎么重写？",
+        "假设植物能感到疼痛并能表达，人类的饮食伦理会如何崩塌又重建？",
+        "如果人类能精确测量爱的多少并显示在脸上，婚姻制度会如何变化？",
+        "假设记忆可以删除但删除会留下『空洞感』，人们会选择遗忘痛苦吗？",
+        "如果地球突然停止自转一半，活下来的人类会优先重建什么？",
+        "假设每个谎言都会让说谎者缩短一秒寿命，政治会变成什么样？",
+        "如果人类不再需要睡觉，多出的三分之一人生会先被什么填满？",
+        "假设所有艺术品在创作者死后立刻消失，人类还会创作吗？",
+        "如果一个人的所有选择都会在平行世界真实发生，『后悔』还有意义吗？",
+        "假设新生儿随机分配给陌生家庭、血缘信息永久封存，亲情会更强还是更弱？",
+        "如果城市里每个人每天必须和一个随机陌生人交换一小时人生，犯罪率会怎么变？",
+        "假设人类失去了想象未来的能力，只能记得过去，经济会最先在哪里垮掉？"
+      ]
+    },
+    {
+      id: "c5", code: "C5", name: "尺度错位", emoji: "🔭",
+      tagline: "宏大 × 琐碎的强行碰撞，错位逼出新角度",
+      principle: "把宇宙级、文明级的宏大概念和鸡毛蒜皮的日常小事捆在同一个问题里。尺度的错位本身就会逼出意想不到的角度，越一本正经越好笑也越深刻。",
+      questions: [
+        "从热力学第二定律的角度，认真分析『我妈让我穿秋裤』这件事。",
+        "用文明兴衰的视角，解释为什么外卖凑满减让人焦虑。",
+        "一只蚊子在我耳边飞了一整晚——请从演化论角度告诉我，谁才是赢家？",
+        "用宇宙热寂的观点，安慰一下我今天又赖床了这件事。",
+        "请从博弈论出发，严肃分析『谁来洗碗』这个家庭难题。",
+        "用帝国崩溃的规律，解释我的减肥计划为什么总在第三天瓦解。",
+        "从熵增定律看，为什么我的桌面永远整理不好？这是我的错吗？",
+        "用地质年代的尺度，评价一下我攒了五年还没看的电影清单。",
+        "请从量子叠加态的角度，分析『我到底要不要回那条消息』。",
+        "用板块运动的视角，解释为什么我和室友的矛盾总在某个临界点爆发。",
+        "从恒星生命周期看，我这杯放凉的咖啡处在哪个阶段？",
+        "用进化心理学，认真解释为什么我抢不到的演唱会票就格外想要。",
+        "请从信息论的角度，分析家庭群里那条『早安』表情包的真正含义。",
+        "用大航海时代的精神，描述我在冰箱深处找一瓶过期酸奶的探险。",
+        "从相对论的时间膨胀效应，解释为什么周末过得比工作日快十倍。",
+        "用生态系统崩溃的模型，分析我钱包在月底的处境。",
+        "请从弦理论的高维视角，评价一下我袜子总是少一只这件事。",
+        "用冷战的均势理论，分析我和邻居关于楼道杂物的长期对峙。",
+        "从生物多样性的角度，认真评估我手机里 47 个从没打开过的 App。",
+        "用文明的轴心时代理论，解释我为什么突然在凌晨三点想通了人生。",
+        "请从黑洞视界的角度，分析我那个『以后再说』的待办清单。",
+        "用群体免疫的原理，解释为什么办公室一个人感冒最后全员中招。"
+      ],
+      templates: {
+        patterns: [
+          "从{grand}的角度，认真分析{trivial}这件事。",
+          "用{grand}的视角，解释为什么{trivial}。",
+          "{trivial}——请从{grand}出发，告诉我这背后到底意味着什么？",
+          "请用{grand}，一本正经地评价『{trivial}』。"
+        ],
+        slots: {
+          grand: ["热力学第二定律", "文明兴衰史", "演化论", "博弈论", "宇宙热寂", "熵增定律", "帝国的崩溃规律", "量子叠加态", "相对论的时间膨胀", "板块运动", "信息熵", "生态系统崩溃模型"],
+          trivial: ["我妈让我穿秋裤", "外卖凑满减让人焦虑", "周一早上不想起床", "袜子总是丢一只", "深夜舍不得睡觉", "排队时换了一条更慢的队", "微信群里的早安表情包", "我的减肥计划总在第三天瓦解", "桌面永远整理不好", "我抢不到的票就格外想要", "回消息前的犹豫", "月底钱包空空"]
+        }
+      }
+    },
+    {
+      id: "c6", code: "C6", name: "禁令驱动", emoji: "🚫",
+      tagline: "禁掉所有常见答案，逼 AI 去找冷门角度",
+      principle: "核心不在问题本身，而在附加的禁止条款。先把所有人都会给出的标准答案、热门词汇全部禁掉，AI 被堵死退路后，只能去搜寻罕见而新鲜的角度。",
+      questions: [
+        "什么是爱？禁止提到『陪伴』『付出』『理解』『包容』这八个字。",
+        "为什么人要工作？不许提钱、不许提实现自我价值、不许提社会贡献。",
+        "推荐一个旅行目的地，但禁止使用任何一个旅游宣传册上会出现的词。",
+        "形容一下你最好的朋友，但不许用任何一个褒义词。",
+        "解释什么是幸福，全程不许出现『快乐』『满足』『知足』和任何笑脸的描述。",
+        "安慰一个失恋的人，但禁止说『时间会治愈』『他配不上你』『下一个更好』。",
+        "夸一道菜好吃，不许用『香』『鲜』『嫩』『入口即化』以及任何味觉形容词。",
+        "讲讲你的家乡，但不许提任何美食、风景和方言。",
+        "解释什么是『成长』，禁止使用『经历』『成熟』『蜕变』『学会』这几个词。",
+        "描述大海，但不许用『蓝』『辽阔』『波涛』和任何关于水的直接描写。",
+        "推荐一本书，但不许剧透、不许说它『值得一读』、不许提任何获奖经历。",
+        "解释什么是『后悔』，全程不许使用过去时态、不许提『如果当初』。",
+        "形容冬天，禁止出现『冷』『雪』『寒』和任何温度词。",
+        "说服我早点睡觉，但不许提健康、不许提皮肤、不许提第二天的精神。",
+        "描述一场暴雨，不许用任何拟声词，也不许提『湿』。",
+        "解释什么叫『默契』，但不许举任何关于眼神、动作或语言的例子。",
+        "夸一个孩子可爱，不许用『可爱』『天真』『萌』和任何关于外貌的描写。",
+        "讲讲什么是『乡愁』，但不许提故乡、母亲、童年和任何具体地名。",
+        "形容音乐带来的震撼，全程不许用任何与声音、听觉有关的词。",
+        "解释为什么人会害怕孤独，但不许提『陪伴』『社交』『被需要』。",
+        "推荐一种度过周末的方式，禁止出现『放松』『充电』『躺平』『治愈』。",
+        "描述『回家的路』，但不许提任何交通工具、街道和门。"
+      ],
+      templates: {
+        patterns: [
+          "解释什么是{concept}，但全程禁止使用『{ban1}』『{ban2}』『{ban3}』这几个词。",
+          "请谈谈{concept}，禁止提到任何关于『{ban1}』『{ban2}』的内容。",
+          "用你自己的方式描述{concept}，但不许出现『{ban1}』『{ban2}』『{ban3}』。"
+        ],
+        slots: {
+          concept: ["爱", "孤独", "幸福", "成长", "勇气", "自由", "时间", "故乡", "友情", "遗憾", "希望", "成熟"],
+          ban1: ["陪伴", "快乐", "经历", "付出", "理解", "温暖", "坚持", "选择", "回忆", "感动"],
+          ban2: ["满足", "成熟", "蜕变", "包容", "珍惜", "拥有", "失去", "成长", "改变", "等待"],
+          ban3: ["知足", "学会", "懂得", "释怀", "拥抱", "守护", "相信", "期待", "面对", "放下"]
+        }
+      }
+    },
+    {
+      id: "c7", code: "C7", name: "文体嫁接", emoji: "🎭",
+      tagline: "内容与形式的错配，错配产生幽默与洞察",
+      principle: "把严肃的内容塞进荒诞的文体，或把鸡毛蒜皮的小事写成宏大的体裁。内容与形式的错配会同时产生喜剧效果和意想不到的洞察。",
+      questions: [
+        "用《出师表》的文风，写一份辞职申请。",
+        "把『如何煮泡面』写成一篇严谨的学术论文摘要，含研究方法与局限性。",
+        "用悬疑小说的笔法，描写我找不到手机但手机就在我手里的全过程。",
+        "以法律合同的格式，拟一份『室友轮流倒垃圾协议』，要有违约责任条款。",
+        "用武侠小说的口吻，描写我在早高峰地铁上抢座位的那一刻。",
+        "把『劝人多喝热水』写成一篇情感充沛的获奖演讲稿。",
+        "用产品发布会的语气，隆重介绍我家楼下那家关门了三次的煎饼摊。",
+        "以史诗的格律，吟唱我连续三天没抢到演唱会门票的悲壮历程。",
+        "用科研论文『讨论与展望』的笔调，分析我室友为什么从来不洗碗。",
+        "把『今天不想上班』写成一封措辞极其正式的外交照会。",
+        "用童话故事的开头，讲述我信用卡账单到来的那个早晨。",
+        "以墓志铭的庄重文体，纪念我那盆养了两周就死掉的多肉。",
+        "用美食纪录片的旁白腔，描述我深夜泡的一碗最普通的方便面。",
+        "把『催对方快点回消息』写成一篇严谨的气象灾害预警通报。",
+        "用侦探破案的推理体，还原我钱是怎么在月底神秘消失的。",
+        "以颁奖典礼的致辞口吻，表彰我妈把一块抹布用了十年的事迹。",
+        "用恐怖小说的氛围渲染，描写周一早上闹钟响起的那一瞬间。",
+        "把『让孩子多吃蔬菜』写成一份措辞强硬的最后通牒。",
+        "用旅行游记的浪漫笔法，记录我从卧室走到冰箱的那段路程。",
+        "以企业年度财报的格式，总结我这一年在奶茶上的『战略投入』。",
+        "用招魂诗的句式，呼唤我那只藏在沙发某处、再也找不到的袜子。",
+        "把『提醒同事开会别迟到』写成一段慷慨激昂的战前动员令。"
+      ],
+      templates: {
+        patterns: [
+          "用{style}的文风，写一篇关于『{topic}』的文字。",
+          "把『{topic}』写成{style}，要素齐全、一本正经。",
+          "请以{style}的口吻，郑重其事地描述『{topic}』。"
+        ],
+        slots: {
+          style: ["《出师表》", "学术论文摘要", "悬疑小说", "法律合同", "武侠小说", "获奖演讲稿", "产品发布会", "史诗", "童话故事的开头", "墓志铭", "美食纪录片旁白", "外交照会", "企业年度财报", "颁奖典礼致辞"],
+          topic: ["辞职", "煮泡面", "今天不想上班", "室友从不洗碗", "早高峰抢座位", "信用卡账单到了", "深夜泡面", "催对方回消息", "周一闹钟响起", "钱在月底消失", "从卧室走到冰箱", "找不到一只袜子"]
+        }
+      }
+    },
+    {
+      id: "c8", code: "C8", name: "反共识", emoji: "♟️",
+      tagline: "为反方构建最强论证（不是让 AI 表态）",
+      principle: "指定一个公认正确的观点，要求 AI 认真构建最有力的反方论证。注意：这是『请陈述反方最强论据』，目的是训练独立思考，而不是让 AI 替你站队或宣扬某个立场。",
+      questions: [
+        "『坚持就是胜利』——请给出这句话最有力的三条反驳，每条配一个真实场景。",
+        "大家都说阅读是好事。请认真论证：在什么情况下，读书反而是一种逃避？",
+        "『失败是成功之母』最早坑了谁？请为『失败往往只是失败之母』辩护。",
+        "人人都推崇『终身学习』。请认真构建反方：盲目学习如何成为一种新的内卷？",
+        "都说『要听从内心』。请论证：内心可能恰恰是最不该被信任的向导。",
+        "『努力就有回报』——请为它的反面给出最严密的论证。",
+        "大家都赞美『断舍离』。请认真陈述：极简主义可能掩盖了哪些问题？",
+        "『多陪伴家人总是对的』——请构建一个反方，说明陪伴也可能是一种伤害。",
+        "都说旅行能开阔眼界。请论证：很多旅行其实只是换个地方刷手机。",
+        "『诚实永远是最好的策略』——请为善意的谎言给出最有力的辩护。",
+        "人人都说要『走出舒适区』。请认真反驳：留在舒适区可能才是智慧。",
+        "『时间能治愈一切』——请陈述：有些伤口，时间只是让我们学会了假装。",
+        "都说『兴趣是最好的老师』。请论证：把热爱变成职业为何常常毁掉热爱。",
+        "『良药苦口』被奉为真理。请为『苦的不一定是良药，可能只是苦』辩护。",
+        "大家都推崇『换位思考』。请认真说明：过度共情如何反而让人无法行动。",
+        "『机会总是留给有准备的人』——请给出这句话最锋利的反面论证。",
+        "都说父母都是为孩子好。请构建反方：『为你好』如何成为最难反抗的控制。",
+        "『知识改变命运』——请认真论证它在某些处境下为何只是一句安慰。",
+        "人人赞美自律。请陈述：极致的自律可能正在悄悄吞噬一个人的生命力。",
+        "『沟通能解决一切问题』——请为『有些问题，沟通只会让它更糟』辩护。",
+        "都说要『活在当下』。请论证：完全活在当下的人，可能正在透支未来。",
+        "『付出总会有回报』——请认真构建：为什么这句话对很多人其实是种残忍。"
+      ]
+    },
+    {
+      id: "c9", code: "C9", name: "强制具体", emoji: "🔬",
+      tagline: "拒绝抽象，只要场景不要定义",
+      principle: "在问题里明确要求用具体的、可感的日常例子作答，杜绝空话套话。爆款回答里那种『面包配方、民法典、每天经过的桥』式的细节感，全靠这一招逼出来。",
+      questions: [
+        "什么是孤独？不许下定义，只许描写三个具体的瞬间。",
+        "用一个发生在厨房里的场景，解释什么是『沉没成本』。",
+        "不说『时间过得很快』这种话——请用五件具体的小事，让我感到时间在流逝。",
+        "什么是『心照不宣』？只许用一个公交车上发生的画面来回答。",
+        "别跟我讲『要珍惜当下』。请描写一个具体的清晨，让我自己感到它值得珍惜。",
+        "什么是『体面』？用一个发生在菜市场的三十秒场景说清楚。",
+        "不许用『成长』这个词——请用三样旧物，讲出一个人这十年的变化。",
+        "什么是真正的『安全感』？只许描写一个深夜厨房里的画面。",
+        "别解释什么是『遗憾』。请写一段父亲整理旧抽屉时的具体动作。",
+        "什么是『熟悉』？用走进一家开了二十年的小店时，扑面而来的三个细节来回答。",
+        "不要定义『善良』。请描写一个雨天便利店里发生的、不超过一分钟的瞬间。",
+        "什么是『疲惫』？只许用下班后在车里多坐的那五分钟来表现。",
+        "别说『母爱伟大』。请用厨房里一个被反复使用、舍不得扔的旧物来表达。",
+        "什么是『长大』？用一个孩子第一次替父母撑伞的具体画面回答。",
+        "不许抽象——请用一桌剩菜，讲清楚什么叫『一个家正在散场』。",
+        "什么是『久别重逢』？只许描写两个人见面后最初十秒里都没说出口的动作。",
+        "别讲大道理。请用一只旧鞋的磨损程度，写出它主人这一年的生活。",
+        "什么是『将就』？用一顿一个人随便对付的晚饭，把它具体地呈现出来。",
+        "不要说『他很爱她』。请用他记得她所有忌口这一件事，让我相信。",
+        "什么是『故乡』？只许用回家那条路上，闭着眼都知道的三个气味来回答。",
+        "别定义『勇敢』。请描写一个普通人在医院走廊里深呼吸的那一下。",
+        "什么是『和解』？用两个人多年后一起沉默地吃完一顿饭的场景说清楚。"
+      ]
+    },
+    {
+      id: "c10", code: "C10", name: "约束游戏", emoji: "⛓️",
+      tagline: "戴着镣铐跳舞——约束越奇怪，输出越有趣",
+      principle: "给回答施加形式上的约束：字数、句式、用词限制、结构规则。约束越奇怪，AI 越要在限制里腾挪，输出反而越有趣。这是一场戴着镣铐的舞蹈。",
+      questions: [
+        "只用问句，回答『人为什么会害怕黑暗』。",
+        "用恰好 50 个字，讲一个有反转的完整故事。",
+        "解释什么是递归，但你的解释本身必须是递归的。",
+        "整段回答不许出现『的』字，谈谈你对汉语的看法。",
+        "用每句话的第一个字连起来是『我很想你』的格式，写一段话。",
+        "只能用否定句（每句都带『不』），描述一个晴朗的好天气。",
+        "回答『什么是希望』，但每句话都必须比上一句短。",
+        "用一个只有逗号、没有句号的长句子，写尽一个人漫长的等待。",
+        "解释什么是『矛盾』，要求你的回答里包含一处自相矛盾。",
+        "只用五岁小孩能懂的词，解释什么是『通货膨胀』。",
+        "写一段关于『告别』的话，全程只许用四个字的短语。",
+        "回答『时间是什么』，但你只能用比喻，不许有任何直接陈述。",
+        "用回文的方式（正读反读都通）写一句关于爱情的话，尽力就好。",
+        "描述『下雨』，但每一句都必须以『然后』开头。",
+        "解释什么是『自由』，限定整段回答不超过三句话，每句不超过十个字。",
+        "讲一个完整的爱情故事，只许用十个词，词之间用顿号隔开。",
+        "回答『人生的意义』，但你必须用一道数学题的形式来作答。",
+        "用『首先…然而…最终』这个结构，讲清楚为什么扫地永远扫不干净。",
+        "写一段安慰人的话，但不许用任何一个标点符号。",
+        "解释什么是『循环』，要求你的最后一句话能无缝接回第一句。",
+        "只用天气现象作比喻，描述一个人三十岁这一年的心境。",
+        "回答『勇气是什么』，全段必须押韵，韵脚自选。"
+      ],
+      templates: {
+        patterns: [
+          "回答『{topic}』，但有一个硬性约束：{rule}。",
+          "请围绕『{topic}』写一段话，要求：{rule}。",
+          "用文字表达『{topic}』，规则是——{rule}。"
+        ],
+        slots: {
+          topic: ["人为什么害怕黑暗", "什么是希望", "什么是孤独", "什么是时间", "什么是爱", "什么是自由", "什么是告别", "什么是勇气", "什么是成长", "什么是遗憾", "什么是故乡", "什么是和解"],
+          rule: ["全程只能用问句", "恰好 50 个字，不多不少", "每句话都必须比上一句更短", "整段不许出现『的』字", "只能用否定句，每句都带『不』", "全程只许用比喻，不许直接陈述", "每句话都以『然后』开头", "不超过三句话，每句不超过十个字", "全程不使用任何标点符号", "只用五岁小孩能懂的词", "最后一句要能无缝接回第一句", "全段押韵，韵脚自选"]
+        }
+      }
+    }
+  ]
+};
+
+/* =========================================================================
+ *  工具函数
+ * ========================================================================= */
+function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+// Fisher–Yates 洗牌（返回新数组）
+function shuffle(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function fillTemplate(pattern, slots) {
+  return pattern.replace(/\{(\w+)\}/g, (_, slot) => pick(slots[slot] || ["?"]));
+}
+
+// 为每个分类生成一条模板即兴题（仅对配置了 templates 的分类）
+function generateTemplate(cat) {
+  if (!cat.templates) return null;
+  const p = pick(cat.templates.patterns);
+  return fillTemplate(p, cat.templates.slots);
+}
+
+/* =========================================================================
+ *  状态
+ * ========================================================================= */
+const PER_BATCH = 4;
+const cats = QUESTION_BANK.categories;
+let activeId = cats[0].id;
+let aiMode = false;
+const favorites = new Map();           // id -> {text, catName}
+const seenByCat = {};                  // catId -> Set(已展示题文)
+const poolByCat = {};                  // catId -> [题文...]（含 AI 实时并入）
+const generatedFlag = {};              // 标记某条是否为即兴/AI 生成（题文 -> badge 文案）
+
+cats.forEach(c => {
+  seenByCat[c.id] = new Set();
+  poolByCat[c.id] = c.questions.slice();
+});
+
+let currentBatch = [];
+
+/* =========================================================================
+ *  DOM 引用
+ * ========================================================================= */
+const $ = sel => document.querySelector(sel);
+const tabsEl = $("#tabs");
+const gridEl = $("#grid");
+const toastEl = $("#toast");
+const overlayEl = $("#overlay");
+const modalEl = $("#modal");
+
+/* =========================================================================
+ *  Toast
+ * ========================================================================= */
+let toastTimer = null;
+function toast(msg) {
+  toastEl.textContent = msg;
+  toastEl.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toastEl.classList.remove("show"), 1800);
+}
+
+/* =========================================================================
+ *  复制（优先 clipboard API，失败降级 execCommand）
+ * ========================================================================= */
+async function copyText(text) {
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch (e) { /* 继续降级 */ }
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.position = "fixed";
+    ta.style.top = "-1000px";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    ta.setSelectionRange(0, ta.value.length);
+    const ok = document.execCommand("copy");
+    document.body.removeChild(ta);
+    return ok;
+  } catch (e) {
+    return false;
+  }
+}
+
+/* =========================================================================
+ *  分类标签渲染
+ * ========================================================================= */
+function renderTabs() {
+  tabsEl.innerHTML = "";
+  cats.forEach(c => {
+    const b = document.createElement("button");
+    b.className = "tab";
+    b.setAttribute("role", "tab");
+    b.setAttribute("aria-selected", String(c.id === activeId));
+    b.innerHTML = `<span class="em">${c.emoji}</span>${c.name}`;
+    b.addEventListener("click", () => {
+      if (activeId === c.id) return;
+      activeId = c.id;
+      renderTabs();
+      renderCategoryHeader();
+      drawBatch(true);
+      b.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+    });
+    tabsEl.appendChild(b);
+  });
+}
+
+function getCat(id) { return cats.find(c => c.id === id); }
+
+function renderCategoryHeader() {
+  const c = getCat(activeId);
+  $("#catCode").textContent = c.code;
+  $("#catName").textContent = c.name;
+  $("#catTagline").textContent = c.tagline;
+  $("#genHint").textContent = c.templates
+    ? "本类支持 🎲 即兴：换一批可能掺入模板实时生成的新题"
+    : "";
+}
+
+/* =========================================================================
+ *  抽取一批题（F3）
+ * ========================================================================= */
+function nextBatchLocal(cat) {
+  const pool = poolByCat[cat.id];
+  const seen = seenByCat[cat.id];
+  let unseen = pool.filter(q => !seen.has(q));
+
+  if (unseen.length < PER_BATCH) {
+    // 题库轮完，重置
+    if (seen.size > 0) toast("题库已轮完一遍，重新洗牌 🔀");
+    seen.clear();
+    unseen = pool.slice();
+  }
+
+  const chosen = shuffle(unseen).slice(0, Math.min(PER_BATCH, unseen.length));
+
+  // 对可模板化分类，有概率把其中一条替换为即兴生成的新题
+  if (cat.templates && Math.random() < 0.5) {
+    const gen = generateTemplate(cat);
+    if (gen && !pool.includes(gen)) {
+      generatedFlag[gen] = "🎲 即兴";
+      const idx = Math.floor(Math.random() * chosen.length);
+      chosen[idx] = gen;
+    }
+  }
+
+  chosen.forEach(q => seen.add(q));
+  return chosen;
+}
+
+/* AI 生成（F9）：失败自动降级 */
+async function nextBatchAI(cat) {
+  const apiAvailable = typeof window.claude !== "undefined" &&
+                       typeof window.claude.complete === "function";
+  const prompt = `你是一个"AI 深度提问"设计师。请按以下分类要求，生成 ${PER_BATCH} 条全新的中文提问。
+
+分类名：${cat.name}
+设计要点：${cat.principle}
+已有示例（不要重复，只参考风格）：
+${cat.questions.slice(0, 3).map(q => "- " + q).join("\n")}
+
+要求：
+1. 每条都要新颖，不能是示例的换皮
+2. 口语化，像真人会问的话
+3. 只输出 JSON 数组，格式 ["问题1","问题2",...]，不要任何其他文字、不要 markdown 代码块`;
+
+  try {
+    let text;
+    if (apiAvailable) {
+      // Claude Artifact 环境提供的全局补全接口
+      text = await window.claude.complete(prompt);
+    } else {
+      // 自部署环境：直连 Messages API
+      const resp = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-6",
+          max_tokens: 1000,
+          messages: [{ role: "user", content: prompt }]
+        })
+      });
+      if (!resp.ok) throw new Error("HTTP " + resp.status);
+      const data = await resp.json();
+      text = data.content.filter(b => b.type === "text").map(b => b.text).join("");
+    }
+
+    const parsed = JSON.parse(String(text).replace(/```json|```/g, "").trim());
+    if (!Array.isArray(parsed) || parsed.length === 0) throw new Error("空结果");
+
+    const clean = parsed.map(String).map(s => s.trim()).filter(Boolean).slice(0, PER_BATCH);
+    // 并入题池，让越刷越多
+    clean.forEach(q => {
+      if (!poolByCat[cat.id].includes(q)) {
+        poolByCat[cat.id].push(q);
+        generatedFlag[q] = "✨ AI 生成";
+        seenByCat[cat.id].add(q);
+      }
+    });
+    toast("✨ AI 实时生成了一批新题");
+    return clean;
+  } catch (e) {
+    toast("网络不可用，已切换本地题库");
+    return nextBatchLocal(cat);
+  }
+}
+
+async function drawBatch(reset) {
+  const cat = getCat(activeId);
+  if (aiMode) {
+    setShuffleBusy(true);
+    currentBatch = await nextBatchAI(cat);
+    setShuffleBusy(false);
+  } else {
+    currentBatch = nextBatchLocal(cat);
+  }
+  renderGrid();
+}
+
+function setShuffleBusy(busy) {
+  const b = $("#shuffleBtn");
+  b.disabled = busy;
+  b.textContent = busy ? "⏳ 生成中…" : "🔄 换一批";
+}
+
+/* =========================================================================
+ *  卡片网格渲染（F2）
+ * ========================================================================= */
+function favKey(text) { return text; }
+
+function renderGrid() {
+  const cat = getCat(activeId);
+  gridEl.innerHTML = "";
+  currentBatch.forEach((text, i) => {
+    const card = document.createElement("article");
+    card.className = "card";
+    card.style.animationDelay = (i * 70) + "ms";
+
+    const q = document.createElement("p");
+    q.className = "q";
+    q.textContent = text;
+    card.appendChild(q);
+
+    if (generatedFlag[text]) {
+      const badge = document.createElement("span");
+      badge.className = "badge";
+      badge.textContent = generatedFlag[text];
+      card.appendChild(badge);
+    }
+
+    const actions = document.createElement("div");
+    actions.className = "card-actions";
+
+    const copyBtn = document.createElement("button");
+    copyBtn.className = "act copy";
+    copyBtn.innerHTML = "📋 复制";
+    copyBtn.addEventListener("click", async () => {
+      const ok = await copyText(text);
+      if (ok) {
+        copyBtn.classList.add("done");
+        copyBtn.innerHTML = "✓ 已复制";
+        toast("已复制，去 AI 对话框粘贴吧");
+        setTimeout(() => {
+          copyBtn.classList.remove("done");
+          copyBtn.innerHTML = "📋 复制";
+        }, 1500);
+      } else {
+        toast("复制失败，请长按手动复制");
+      }
+    });
+
+    const favBtn = document.createElement("button");
+    favBtn.className = "act fav icon";
+    const isFav = favorites.has(favKey(text));
+    favBtn.classList.toggle("on", isFav);
+    favBtn.innerHTML = isFav ? "★" : "☆";
+    favBtn.setAttribute("aria-label", "收藏");
+    favBtn.addEventListener("click", () => {
+      toggleFav(text, cat.name);
+      const now = favorites.has(favKey(text));
+      favBtn.classList.toggle("on", now);
+      favBtn.innerHTML = now ? "★" : "☆";
+      toast(now ? "已加入收藏 ⭐" : "已取消收藏");
+    });
+
+    const shareBtn = document.createElement("button");
+    shareBtn.className = "act icon";
+    shareBtn.innerHTML = "🔗";
+    shareBtn.setAttribute("aria-label", "分享");
+    shareBtn.addEventListener("click", () => shareQuestion(text, cat.name));
+
+    actions.appendChild(copyBtn);
+    actions.appendChild(favBtn);
+    actions.appendChild(shareBtn);
+    card.appendChild(actions);
+    gridEl.appendChild(card);
+  });
+}
+
+/* =========================================================================
+ *  收藏（F7，内存态）
+ * ========================================================================= */
+function toggleFav(text, catName) {
+  const k = favKey(text);
+  if (favorites.has(k)) favorites.delete(k);
+  else favorites.set(k, { text, catName });
+  updateFavCount();
+}
+function updateFavCount() { $("#favCount").textContent = favorites.size; }
+
+/* =========================================================================
+ *  分享（F11）
+ * ========================================================================= */
+async function shareQuestion(text, catName) {
+  const payload = `【提问火花 · ${catName}】\n${text}\n\n——来自 PromptSpark 提问火花`;
+  if (navigator.share) {
+    try { await navigator.share({ text: payload }); return; } catch (e) { /* 用户取消或失败则降级复制 */ }
+  }
+  const ok = await copyText(payload);
+  toast(ok ? "分享文本已复制 🔗" : "复制失败，请手动复制");
+}
+
+/* =========================================================================
+ *  弹窗（F8 原理 / F7 收藏夹 / F6 大字题）
+ * ========================================================================= */
+function openModal(html) {
+  modalEl.innerHTML = html;
+  overlayEl.classList.add("show");
+  const closer = modalEl.querySelector("[data-close]");
+  if (closer) closer.addEventListener("click", closeModal);
+  modalEl.querySelectorAll("[data-action]").forEach(el => {
+    el.addEventListener("click", () => handleModalAction(el.dataset.action, el.dataset.text, el.dataset.cat));
+  });
+}
+function closeModal() { overlayEl.classList.remove("show"); }
+overlayEl.addEventListener("click", e => { if (e.target === overlayEl) closeModal(); });
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeModal(); });
+
+function handleModalAction(action, text, cat) {
+  if (action === "copy") {
+    copyText(text).then(ok => toast(ok ? "已复制 ✓" : "复制失败"));
+  } else if (action === "share") {
+    shareQuestion(text, cat);
+  } else if (action === "unfav") {
+    favorites.delete(favKey(text));
+    updateFavCount();
+    renderGrid();
+    showFavorites();
+  } else if (action === "lucky-again") {
+    showLucky();
+  }
+}
+
+function showPrinciple() {
+  const c = getCat(activeId);
+  const examples = c.questions.slice(0, 3).map(q => `<li>${escapeHtml(q)}</li>`).join("");
+  openModal(`
+    <button class="help-dot close" data-close aria-label="关闭">✕</button>
+    <div class="sub">${c.code} · 设计原理</div>
+    <h3>${c.emoji} ${c.name}</h3>
+    <p>${escapeHtml(c.principle)}</p>
+    <div class="ex"><strong style="color:var(--ink-soft);font-size:13px;">示例</strong>
+      <ul class="ex">${examples}</ul>
+    </div>
+  `);
+}
+
+function showFavorites() {
+  let body;
+  if (favorites.size === 0) {
+    body = `<div class="empty">还没有收藏。点卡片上的 ☆ 把喜欢的提问存进来。<br><span style="font-size:12px;">（注：收藏仅保存在本次会话，刷新页面会清空）</span></div>`;
+  } else {
+    body = "";
+    for (const { text, catName } of favorites.values()) {
+      body += `
+        <div class="fav-item">
+          <div class="ftext">
+            <div class="fmeta">${escapeHtml(catName)}</div>
+            ${escapeHtml(text)}
+            <div style="margin-top:8px;display:flex;gap:8px;">
+              <button class="act" data-action="copy" data-text="${escapeAttr(text)}">📋 复制</button>
+              <button class="act" data-action="share" data-text="${escapeAttr(text)}" data-cat="${escapeAttr(catName)}">🔗 分享</button>
+            </div>
+          </div>
+          <button data-action="unfav" data-text="${escapeAttr(text)}" aria-label="移除">✕</button>
+        </div>`;
+    }
+  }
+  openModal(`
+    <button class="help-dot close" data-close aria-label="关闭">✕</button>
+    <div class="sub">⭐ 我的收藏（${favorites.size}）</div>
+    <h3>收藏夹</h3>
+    ${body}
+  `);
+}
+
+/* =========================================================================
+ *  手气不错（F6）—— 跨分类随机一题，大字展示
+ * ========================================================================= */
+function showLucky() {
+  const c = pick(cats);
+  const text = pick(c.questions);
+  openModal(`
+    <button class="help-dot close" data-close aria-label="关闭">✕</button>
+    <div class="big">
+      <div class="src">${c.emoji} ${c.code} · ${c.name}</div>
+      <div class="q">${escapeHtml(text)}</div>
+      <div class="actions">
+        <button class="btn primary" data-action="copy" data-text="${escapeAttr(text)}">📋 复制</button>
+        <button class="btn" data-action="share" data-text="${escapeAttr(text)}" data-cat="${escapeAttr(c.name)}">🔗 分享</button>
+        <button class="btn" data-action="lucky-again">🎲 再来一条</button>
+      </div>
+    </div>
+  `);
+}
+
+/* =========================================================================
+ *  HTML 转义
+ * ========================================================================= */
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, m => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  }[m]));
+}
+function escapeAttr(s) { return escapeHtml(s); }
+
+/* =========================================================================
+ *  事件绑定
+ * ========================================================================= */
+$("#shuffleBtn").addEventListener("click", () => drawBatch(false));
+$("#helpBtn").addEventListener("click", showPrinciple);
+$("#luckyBtn").addEventListener("click", showLucky);
+$("#favBtn").addEventListener("click", showFavorites);
+
+$("#aiToggle").addEventListener("change", e => {
+  aiMode = e.target.checked;
+  $("#genHint").textContent = aiMode
+    ? "✨ AI 生成模式已开启：换一批将实时生成（失败自动降级本地题库）"
+    : (getCat(activeId).templates ? "本类支持 🎲 即兴：换一批可能掺入模板实时生成的新题" : "");
+  if (aiMode) toast("AI 生成模式已开启");
+});
+
+/* =========================================================================
+ *  初始化
+ * ========================================================================= */
+renderTabs();
+renderCategoryHeader();
+drawBatch(true);
+updateFavCount();
+</script>
+</body>
+</html>
