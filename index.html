@@ -92,11 +92,38 @@
 
   /* ---------- Category tabs ---------- */
   .tabs-shell { margin: 16px -16px 8px; position: relative; }
+  /* 边缘渐隐：提示左右还有更多内容 */
+  .tabs-shell::before,
+  .tabs-shell::after {
+    content: ""; position: absolute; top: 0; bottom: 0; width: 28px;
+    pointer-events: none; z-index: 2; opacity: 0; transition: opacity .2s;
+  }
+  .tabs-shell::before { left: 0; background: linear-gradient(to right, var(--bg), transparent); }
+  .tabs-shell::after  { right: 0; background: linear-gradient(to left, var(--bg), transparent); }
+  .tabs-shell.can-left::before  { opacity: 1; }
+  .tabs-shell.can-right::after  { opacity: 1; }
   .tabs {
     display: flex; gap: 9px; overflow-x: auto; padding: 6px 16px 10px;
     scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; scrollbar-width: none;
+    touch-action: pan-x pan-y; overscroll-behavior-x: contain; cursor: grab;
   }
+  .tabs.dragging { cursor: grabbing; scroll-snap-type: none; }
+  .tabs.dragging .tab { pointer-events: none; }
   .tabs::-webkit-scrollbar { display: none; }
+  /* 左右箭头按钮（点击滚动，保证一定能滑动） */
+  .tabs-arrow {
+    position: absolute; top: 50%; transform: translateY(-50%); z-index: 3;
+    width: 34px; height: 34px; border-radius: 50%;
+    border: 1px solid var(--paper-edge); background: rgba(42, 36, 31, .92);
+    color: var(--ink); font-size: 20px; line-height: 1; cursor: pointer;
+    display: none; align-items: center; justify-content: center; padding: 0;
+    box-shadow: 0 4px 12px rgba(0,0,0,.35); -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px);
+  }
+  .tabs-arrow.left { left: 4px; }
+  .tabs-arrow.right { right: 4px; }
+  .tabs-shell.can-left .tabs-arrow.left { display: inline-flex; }
+  .tabs-shell.can-right .tabs-arrow.right { display: inline-flex; }
+  .tabs-arrow:active { transform: translateY(-50%) scale(.92); }
   .tab {
     flex: none; scroll-snap-align: start;
     background: var(--paper); border: 1px solid var(--paper-edge);
@@ -254,8 +281,10 @@
     </label>
   </div>
 
-  <div class="tabs-shell">
+  <div class="tabs-shell" id="tabsShell">
+    <button class="tabs-arrow left" id="tabsLeft" aria-label="向左滚动分类">‹</button>
     <div class="tabs" id="tabs" role="tablist" aria-label="提问分类"></div>
+    <button class="tabs-arrow right" id="tabsRight" aria-label="向右滚动分类">›</button>
   </div>
 
   <div class="cat-head">
@@ -1071,12 +1100,84 @@ $("#aiToggle").addEventListener("change", e => {
 });
 
 /* =========================================================================
+ *  分类标签：左右滑动（箭头 / 拖拽 / 滚轮 / 触摸）
+ * ========================================================================= */
+function setupTabsScroll() {
+  const shell = $("#tabsShell");
+  const scroller = tabsEl;
+  const leftBtn = $("#tabsLeft");
+  const rightBtn = $("#tabsRight");
+
+  // 根据滚动位置切换两侧渐隐 / 箭头显隐
+  function updateEdges() {
+    const max = scroller.scrollWidth - scroller.clientWidth;
+    const x = scroller.scrollLeft;
+    shell.classList.toggle("can-left", x > 1);
+    shell.classList.toggle("can-right", x < max - 1);
+  }
+
+  function scrollByStep(dir) {
+    const step = Math.max(scroller.clientWidth * 0.7, 160);
+    scroller.scrollBy({ left: dir * step, behavior: "smooth" });
+  }
+
+  leftBtn.addEventListener("click", () => scrollByStep(-1));
+  rightBtn.addEventListener("click", () => scrollByStep(1));
+
+  // 鼠标拖拽滚动（桌面端没有触摸时也能拖）
+  let dragging = false, startX = 0, startScroll = 0, moved = false;
+  scroller.addEventListener("pointerdown", e => {
+    if (e.pointerType === "touch") return; // 触摸交给原生滚动
+    dragging = true; moved = false;
+    startX = e.clientX; startScroll = scroller.scrollLeft;
+    scroller.classList.add("dragging");
+    scroller.setPointerCapture(e.pointerId);
+  });
+  scroller.addEventListener("pointermove", e => {
+    if (!dragging) return;
+    const dx = e.clientX - startX;
+    if (Math.abs(dx) > 4) moved = true;
+    scroller.scrollLeft = startScroll - dx;
+  });
+  function endDrag(e) {
+    if (!dragging) return;
+    dragging = false;
+    scroller.classList.remove("dragging");
+    try { scroller.releasePointerCapture(e.pointerId); } catch (_) {}
+  }
+  scroller.addEventListener("pointerup", endDrag);
+  scroller.addEventListener("pointercancel", endDrag);
+  scroller.addEventListener("pointerleave", endDrag);
+  // 拖拽过程中误触 tab 的点击
+  scroller.addEventListener("click", e => {
+    if (moved) { e.stopPropagation(); e.preventDefault(); moved = false; }
+  }, true);
+
+  // 竖向滚轮转横向（桌面端方便）
+  scroller.addEventListener("wheel", e => {
+    if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+      scroller.scrollLeft += e.deltaY;
+      e.preventDefault();
+    }
+  }, { passive: false });
+
+  scroller.addEventListener("scroll", updateEdges, { passive: true });
+  window.addEventListener("resize", updateEdges);
+  updateEdges();
+  return updateEdges;
+}
+
+/* =========================================================================
  *  初始化
  * ========================================================================= */
 renderTabs();
 renderCategoryHeader();
 drawBatch(true);
 updateFavCount();
+const refreshTabEdges = setupTabsScroll();
+// 字体加载完成后宽度可能变化，重算一次
+requestAnimationFrame(refreshTabEdges);
+setTimeout(refreshTabEdges, 400);
 </script>
 </body>
 </html>
