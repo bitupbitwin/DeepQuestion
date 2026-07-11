@@ -1,0 +1,11 @@
+{
+  "name": "promptspark",
+  "version": "1.0.0",
+  "private": true,
+  "description": "提问火花 PromptSpark — 按分类生成能逼出 AI 深度回答的提问，含 Grok 代理",
+  "type": "module",
+  "scripts": {
+    "dev": "vercel dev",
+    "deploy": "vercel --prod"
+  }
+}

@@ -709,6 +709,56 @@ cats.forEach(c => {
   poolByCat[c.id] = c.questions.slice();
 });
 
+/* =========================================================================
+ *  本地持久化（F13）：收藏 + AI/即兴生成的题目跨刷新保留。
+ *  localStorage 不可用时（如 claude.ai Artifact 沙盒）自动降级为纯内存态，
+ *  不报错、不影响任何功能。
+ * ========================================================================= */
+const LS_OK = (() => {
+  try { const k = "__ps_probe__"; localStorage.setItem(k, "1"); localStorage.removeItem(k); return true; }
+  catch (e) { return false; }
+})();
+const LS_FAVS = "pspark.favs.v1";
+const LS_EXTRAS = "pspark.extras.v1";   // { catId: [{text, flag}] } —— 超出内置题库的新题
+
+function lsLoad(key, fallback) {
+  if (!LS_OK) return fallback;
+  try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : fallback; }
+  catch (e) { return fallback; }
+}
+function lsSave(key, val) {
+  if (!LS_OK) return;
+  try { localStorage.setItem(key, JSON.stringify(val)); } catch (e) { /* 配额满等：静默 */ }
+}
+function saveFavs() {
+  lsSave(LS_FAVS, Array.from(favorites.values()));
+}
+// 记录一条"生成题"到持久化池（AI 或即兴），并入内存池
+function rememberExtra(catId, text, flag) {
+  if (!poolByCat[catId].includes(text)) poolByCat[catId].push(text);
+  generatedFlag[text] = flag;
+  const store = lsLoad(LS_EXTRAS, {});
+  const arr = store[catId] || (store[catId] = []);
+  if (!arr.some(e => e.text === text)) { arr.push({ text, flag }); lsSave(LS_EXTRAS, store); }
+}
+function rehydrateFromStorage() {
+  // 收藏
+  for (const fav of lsLoad(LS_FAVS, [])) {
+    if (fav && fav.text) favorites.set(favKey(fav.text), { text: fav.text, catName: fav.catName || "" });
+  }
+  // 生成题：并回各分类题池
+  const extras = lsLoad(LS_EXTRAS, {});
+  for (const catId of Object.keys(extras)) {
+    if (!poolByCat[catId]) continue;
+    for (const e of extras[catId]) {
+      if (e && e.text && !poolByCat[catId].includes(e.text)) {
+        poolByCat[catId].push(e.text);
+        generatedFlag[e.text] = e.flag || "✨ AI 生成";
+      }
+    }
+  }
+}
+
 let currentBatch = [];
 
 /* =========================================================================
@@ -833,7 +883,7 @@ function nextBatchLocal(cat) {
   if (cat.templates && Math.random() < 0.5) {
     const gen = generateTemplate(cat);
     if (gen && !pool.includes(gen)) {
-      generatedFlag[gen] = "🎲 即兴";
+      rememberExtra(cat.id, gen, "🎲 即兴");
       const idx = Math.floor(Math.random() * chosen.length);
       chosen[idx] = gen;
     }
@@ -849,8 +899,9 @@ function nextBatchLocal(cat) {
 // 例如 "https://你的项目.vercel.app/api/generate"。
 const AI_ENDPOINT = "/api/generate";
 
-/* AI 生成（F9）：调用 Grok 代理，失败自动降级本地题库 */
-async function nextBatchAI(cat) {
+/* AI 生成（F9）：调用 Grok 代理，失败自动降级本地题库。
+ * seq 用于丢弃过期请求——生成期间用户切了分类/又点了一次，则不改动题池、不返回结果。 */
+async function nextBatchAI(cat, seq) {
   try {
     const resp = await fetch(AI_ENDPOINT, {
       method: "POST",
@@ -867,18 +918,19 @@ async function nextBatchAI(cat) {
     const parsed = data.questions;
     if (!Array.isArray(parsed) || parsed.length === 0) throw new Error("空结果");
 
+    // 结果已过期：直接丢弃，绝不污染题池（修复竞态副作用）
+    if (seq !== batchSeq) return null;
+
     const clean = parsed.map(String).map(s => s.trim()).filter(Boolean).slice(0, PER_BATCH);
-    // 并入题池，让越刷越多
+    // 并入题池并持久化，让越刷越多
     clean.forEach(q => {
-      if (!poolByCat[cat.id].includes(q)) {
-        poolByCat[cat.id].push(q);
-        generatedFlag[q] = "✨ AI 生成";
-        seenByCat[cat.id].add(q);
-      }
+      rememberExtra(cat.id, q, "✨ AI 生成");
+      seenByCat[cat.id].add(q);
     });
     toast("✨ Grok 实时生成了一批新题");
     return clean;
   } catch (e) {
+    if (seq !== batchSeq) return null;
     toast("AI 不可用，已切换本地题库");
     return nextBatchLocal(cat);
   }
@@ -893,9 +945,10 @@ async function drawBatch(useAI) {
   const seq = ++batchSeq;
   if (useAI && aiMode) {
     setShuffleBusy(true);
-    const batch = await nextBatchAI(cat);
+    const batch = await nextBatchAI(cat, seq);
+    if (seq !== batchSeq) return;   // 过期：期间已切分类或有更新请求
     setShuffleBusy(false);
-    if (seq !== batchSeq) return; // 过期结果：期间已切分类或有更新请求
+    if (batch === null) return;
     currentBatch = batch;
   } else {
     currentBatch = nextBatchLocal(cat);
@@ -991,6 +1044,7 @@ function toggleFav(text, catName) {
   if (favorites.has(k)) favorites.delete(k);
   else favorites.set(k, { text, catName });
   updateFavCount();
+  saveFavs();
 }
 function updateFavCount() { $("#favCount").textContent = favorites.size; }
 
@@ -1222,6 +1276,7 @@ function setupTabsScroll() {
 /* =========================================================================
  *  初始化
  * ========================================================================= */
+rehydrateFromStorage();   // 先恢复收藏 + 历史生成题
 renderTabs();
 renderCategoryHeader();
 drawBatch(false);

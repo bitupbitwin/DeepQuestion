@@ -10,9 +10,48 @@
 
 const XAI_URL = "https://api.x.ai/v1/chat/completions";
 
+// ── 防盗刷（两道防线）────────────────────────────────────────────────
+// 1) 来源校验：只放行来自 ALLOWED_ORIGINS 的请求（默认同源部署，自动放行本站）。
+//    通过 Vercel 环境变量 ALLOWED_ORIGINS 配置，逗号分隔；留空则不做来源限制。
+// 2) 尽力而为的内存限流：同一 IP 每 RATE_WINDOW_MS 内最多 RATE_MAX 次。
+//    注意：Serverless 多实例下内存不共享，这只能挡住"暖实例"上的突发刷量；
+//    要强限流需接 Vercel KV / Upstash（见 README）。
+const RATE_WINDOW_MS = 60_000;
+const RATE_MAX = Number(process.env.RATE_MAX || 20);
+const _hits = new Map(); // ip -> number[] (时间戳)
+
+function allowedOrigins() {
+  return (process.env.ALLOWED_ORIGINS || "")
+    .split(",").map(s => s.trim()).filter(Boolean);
+}
+function originAllowed(req) {
+  const list = allowedOrigins();
+  if (list.length === 0) return true; // 未配置：不限制来源
+  const origin = req.headers.origin || "";
+  if (origin && list.includes(origin)) return true;
+  // 没有 Origin 头（部分同源请求）时，用 Referer 兜底
+  const ref = req.headers.referer || "";
+  return list.some(o => ref.startsWith(o));
+}
+function clientIp(req) {
+  const xff = req.headers["x-forwarded-for"];
+  if (typeof xff === "string" && xff) return xff.split(",")[0].trim();
+  return req.socket?.remoteAddress || "unknown";
+}
+function rateLimited(ip) {
+  const now = Date.now();
+  const arr = (_hits.get(ip) || []).filter(t => now - t < RATE_WINDOW_MS);
+  arr.push(now);
+  _hits.set(ip, arr);
+  if (_hits.size > 5000) _hits.clear(); // 防止内存无限增长
+  return arr.length > RATE_MAX;
+}
+
 export default async function handler(req, res) {
-  // 允许跨域（前端若与本函数不同源时也能用）
-  res.setHeader("Access-Control-Allow-Origin", "*");
+  // CORS：配置了 ALLOWED_ORIGINS 时回显命中的来源，否则放行任意来源
+  const list = allowedOrigins();
+  const origin = req.headers.origin || "";
+  res.setHeader("Access-Control-Allow-Origin", list.length ? (list.includes(origin) ? origin : list[0]) : "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
@@ -22,6 +61,14 @@ export default async function handler(req, res) {
   }
   if (req.method !== "POST") {
     res.status(405).json({ error: "Method not allowed" });
+    return;
+  }
+  if (!originAllowed(req)) {
+    res.status(403).json({ error: "来源不被允许" });
+    return;
+  }
+  if (rateLimited(clientIp(req))) {
+    res.status(429).json({ error: "请求过于频繁，请稍后再试" });
     return;
   }
 

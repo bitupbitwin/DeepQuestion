@@ -12,7 +12,7 @@
 2. 点击顶部分类标签，切换不同的"提问风格"
 3. 看每类下的 4 张问题卡片，不满意就点 **🔄 换一批**
 4. 满意就点卡片上的 **📋 复制**，去你常用的 AI 对话框粘贴提问
-5. （进阶）打开 **✨ AI 生成模式**，换一批将调用 Claude API 实时生成全新问题
+5. （进阶）打开 **✨ AI 生成模式**，换一批将调用 Grok（xAI）API 实时生成全新问题
 
 零依赖、单文件，可直接托管到 GitHub Pages / Vercel 获得一个网址。
 
@@ -37,12 +37,12 @@
 
 - **P0**：分类导航、问题卡片、换一批（Fisher–Yates 不重复抽取）、一键复制（含降级方案）、响应式布局（手机单列 / 平板双列 / 桌面三列）
 - **P1**：🎲 手气不错（跨分类随机大字一题）、⭐ 收藏夹（内存态）、? 分类原理弹窗
-- **P2**：🎲 模板即兴生成（C5/C6/C7/C10，免联网）、✨ AI 生成模式（调用 Claude API，失败自动降级本地题库）、🔗 分享
+- **P2**：🎲 模板即兴生成（C5/C6/C7/C10，免联网）、✨ AI 生成模式（调用 Grok/xAI API，失败自动降级本地题库）、🔗 分享
 
 ## 技术说明
 
 - 前端采用方案 A：单文件 `index.html`，结构 + 样式 + 题库 + 逻辑全在一起，零构建、零依赖。
-- 收藏使用内存态（`Map`），未使用 `localStorage`，符合 claude.ai Artifact 环境限制；刷新页面会清空收藏。
+- 收藏与"AI/即兴生成的新题"会写入 `localStorage` 跨刷新保留；在不支持 `localStorage` 的环境（如 claude.ai Artifact 沙盒）自动降级为纯内存态，不报错。
 - AI 生成模式调用同源后端代理 `/api/generate`（见下），由服务端持有 API Key 调用 **Grok（xAI）**；任何失败都会 `try/catch` 回退到本地题库并 toast 提示。
 - 尊重系统的"减弱动效"设置（`prefers-reduced-motion`）。
 
@@ -56,10 +56,13 @@ AI 模式不在浏览器里直连大模型（那样会泄露 API Key、且有 CO
 2. 在 Vercel 项目的 **Settings → Environment Variables** 配置：
    - `XAI_API_KEY`：**必填**，你的 xAI API Key
    - `XAI_MODEL`：可选，默认 `grok-4`，可改成 `grok-3`、`grok-2-1212` 等
+   - `ALLOWED_ORIGINS`：可选但**强烈建议**，逗号分隔的允许来源，如 `https://你的项目.vercel.app`。配置后只有你的站点能调用此代理，挡住别人拿你的 Key 盗刷。留空则不限来源。
+   - `RATE_MAX`：可选，同一 IP 每分钟最多请求数，默认 `20`。
 3. 部署完成后打开站点，开启「✨ AI 生成模式」，点「换一批」即调用 Grok 实时生成。
 
 > 接口为 OpenAI 兼容格式：`POST https://api.x.ai/v1/chat/completions`。
 > 函数已做输入校验、markdown 代码块清洗、JSON 兜底解析，上游报错时返回非 200，前端会自动降级本地题库。
+> **防盗刷**：函数内置来源校验（`ALLOWED_ORIGINS`）+ 内存限流（`RATE_MAX`）。注意 Serverless 多实例下内存不共享，限流只挡暖实例突发；要强限流请接 [Vercel KV](https://vercel.com/docs/storage/vercel-kv) 或 Upstash Redis 做分布式计数。
 
 **前后端分开托管时**（例如前端放 GitHub Pages、后端放 Vercel）：把 `index.html` 里的常量 `AI_ENDPOINT` 从 `"/api/generate"` 改成你的 Vercel 函数完整地址，例如 `"https://你的项目.vercel.app/api/generate"`。
 
